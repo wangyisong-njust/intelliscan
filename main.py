@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 3D-IntelliScan Main Pipeline
 
@@ -64,6 +66,9 @@ class PipelineConfig:
     use_inmemory_detection: bool = False
     verbose: bool = True
     clean_mask: bool = MAKE_CLEAN_DEFAULT
+    use_trt: bool = False
+    trt_engine_path: str | None = None
+    enable_ai_analysis: bool = False
 
 
 # Default configuration
@@ -104,9 +109,6 @@ def process_segmentation_and_metrology_combined(
     # Ensure model is loaded
     engine.load_model()
 
-    # Ensure output directories exist
-    (seg_output_dir / "img").mkdir(parents=True, exist_ok=True)
-    (seg_output_dir / "pred").mkdir(parents=True, exist_ok=True)
     metrology_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize metrology DataFrame
@@ -183,12 +185,6 @@ def process_segmentation_and_metrology_combined(
 
         except Exception as e:
             log(f"Error computing metrology for bbox {idx}: {e}", level="error")
-
-        # Save crop and prediction to disk (for debugging/compatibility)
-        img_path = seg_output_dir / "img" / f"img_{idx}.nii.gz"
-        pred_path = seg_output_dir / "pred" / f"pred_{idx}.nii.gz"
-        nib.save(nib.Nifti1Image(crop.astype(np.float32), np.eye(4)), str(img_path))
-        nib.save(nib.Nifti1Image(prediction.astype(np.float32), np.eye(4)), str(pred_path))
 
         # Store result
         results.append(
@@ -488,7 +484,11 @@ def process_single_file(
         log(f"3D bounding boxes shape: {bb_3d.shape}")
 
         seg_output_dir = outfolder / "mmt"
-        engine = SegmentationInference(config.segmentation_model, SegmentationConfig())
+        seg_config = SegmentationConfig(
+            use_trt=config.use_trt,
+            trt_engine_path=config.trt_engine_path,
+        )
+        engine = SegmentationInference(config.segmentation_model, seg_config)
 
         if config.use_combined_seg_metrology:
             # Combined segmentation + metrology in single phase
@@ -514,15 +514,13 @@ def process_single_file(
                 phase.complete(count=num_bboxes)
 
         else:
-            # Separate segmentation and metrology phases (original behavior)
+            # Separate segmentation and metrology phases
             with metrics.phase("3D Segmentation") as phase:
                 log("Running 3D segmentation...")
 
-                # Create output directories for per-bbox results
+                # Segment all bounding boxes (save nii.gz for metrology + report)
                 (seg_output_dir / "img").mkdir(parents=True, exist_ok=True)
                 (seg_output_dir / "pred").mkdir(parents=True, exist_ok=True)
-
-                # Segment all bounding boxes
                 results = segment_bboxes(engine, data3d, bb_3d, save_dir=seg_output_dir)
 
                 # Assemble into full volume and save
@@ -535,28 +533,24 @@ def process_single_file(
                 phase.complete(count=num_bboxes)
 
             with metrics.phase("Metrology") as phase:
-                metrology_input_path = outfolder / "mmt" / "pred"
-                log(f"Checking metrology input folder: {metrology_input_path}")
-                mask_files = []
-                if metrology_input_path.exists():
+                log("Computing metrology measurements...")
+                metrology_input_path = seg_output_dir / "pred"
+                if not metrology_input_path.exists():
+                    log(f"Metrology input folder does not exist: {metrology_input_path}", level="error")
+                else:
                     mask_files = list(metrology_input_path.rglob("*.nii.gz"))
                     log(f"Found {len(mask_files)} .nii.gz files to process")
                     if len(mask_files) == 0:
                         log("No files found! Check if previous steps generated files.", level="warning")
-                else:
-                    log(f"Metrology input folder does not exist: {metrology_input_path}", level="error")
 
-                # Reshape to match expected format [1, N] for single model
-                bb_3d_list = bb_3d.reshape(1, -1) if bb_3d.ndim == 1 else np.expand_dims(bb_3d, axis=0)
-
-                _ = process_metrology(
+                metrology_df = process_metrology(
                     input_folder=metrology_input_path,
                     output_folder=outfolder / "metrology",
-                    clean_out_path=outfolder / "cleaned_metrology",
+                    clean_out_path=outfolder / "metrology" / "clean",
                     clean_mask=config.clean_mask,
-                    bb_3d_list=bb_3d_list,
+                    bb_3d_list=bb_3d[np.newaxis, :] if bb_3d.ndim == 2 else bb_3d,
                 )
-                phase.complete(count=len(mask_files))
+                phase.complete(count=len(results))
 
         report_path = outfolder / "metrology" / "metrology_report.pdf"
         with metrics.phase("Report Generation"):
@@ -564,6 +558,7 @@ def process_single_file(
                 str(outfolder / "metrology" / "metrology.csv"),
                 str(report_path),
                 input_filename=input_file.name,
+                enable_ai_analysis=config.enable_ai_analysis,
             )
 
         # Save metrics for this task
@@ -625,6 +620,9 @@ Examples:
     parser.add_argument("--quiet", "-q", action="store_true", help="Quiet mode (only essential output)")
     parser.add_argument("--list", action="store_true", help="List all jobs in logbook")
     parser.add_argument("--inmemory", action="store_true", help="Use in-memory detection (faster)")
+    parser.add_argument("--trt", action="store_true", help="Use TensorRT backend for segmentation")
+    parser.add_argument("--trt-engine", type=str, default=None, help="Path to TensorRT engine file")
+    parser.add_argument("--ai-analysis", action="store_true", help="Enable AI analysis in PDF report")
 
     args = parser.parse_args()
 
@@ -633,6 +631,9 @@ Examples:
         output_base=args.output,
         verbose=not args.quiet,
         use_inmemory_detection=args.inmemory,
+        use_trt=args.trt,
+        trt_engine_path=args.trt_engine,
+        enable_ai_analysis=args.ai_analysis,
     )
 
     # List jobs mode
@@ -660,7 +661,7 @@ Examples:
         # Batch mode from files.txt
         try:
             with open("files.txt") as f:
-                input_files = [line.strip() for line in f.readlines() if line.strip()]
+                input_files = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
         except FileNotFoundError:
             print("Error: No input file specified and files.txt not found")
             print("Usage: python main.py <input_file> or create files.txt")

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Pipeline utility classes and functions for 3D-IntelliScan.
 

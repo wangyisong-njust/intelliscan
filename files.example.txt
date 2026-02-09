@@ -1,0 +1,7 @@
+# 3D-IntelliScan Input File List
+# Copy this file to files.txt and add your NIfTI file paths (one per line):
+#   cp files.example.txt files.txt
+#
+# Lines starting with # are ignored.
+
+./data/SN001/test.nii

@@ -7,11 +7,15 @@
 
 # Models directory - ignore trained model weights
 *.pth
+*.ckpt
 *.pt
 *.onnx
-*.h5
 *.pb
 *.tflite
+*.engine
+
+# User-specific input file list (use files.example.txt as template)
+files.txt
 
 # Output directory - ignore processing results
 output/
@@ -183,6 +187,7 @@ celerybeat.pid
 
 # Environments
 .env
+!.env.example
 .venv
 env/
 venv/
@@ -331,3 +336,4 @@ docker-compose.override.yml
 .claude/
 TODO.md
 archive/
+data/

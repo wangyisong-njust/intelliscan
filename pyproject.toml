@@ -1,5 +1,5 @@
 [project]
-name = "3ddl-wp5-swip"
+name = "intelliscan"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
@@ -9,12 +9,15 @@ dependencies = [
     "monai>=1.5.1",
     "nibabel>=5.3.3",
     "pandas>=2.3.3",
+    "python-dotenv>=1.0.0",
     "pillow>=12.0.0",
+    "pycuda>=2026.1",
     "pypdf2>=3.0.1",
     "scikit-image>=0.25.2",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
     "sentence-transformers>=5.2.0",
+    "tensorrt-cu12>=10.15.1.29",
     "ultralytics>=8.3.240",
 ]
 

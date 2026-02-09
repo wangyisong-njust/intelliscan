@@ -1,2 +1,0 @@
-/mnt/sdb/Data/3DDL-WP5-Data/5Samples/SN002_3D_Feb24/4_die_stack_0.75um_3Drecon_txm.nii
-/mnt/sdb/Data/3DDL-WP5-Data/5Samples/SN009_3D_May24/2_die_interposer_3Drecon_txm.nii

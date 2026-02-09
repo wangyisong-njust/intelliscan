@@ -20,7 +20,7 @@ python main.py --list
 
 ## Input
 
-- Add input NIfTI file paths to `files.txt` (one per line)
+- Copy `files.example.txt` to `files.txt` and add your NIfTI file paths (one per line)
 - Or pass file path directly as argument
 
 ## Model Weights
@@ -58,7 +58,8 @@ output/
 ├── metrology.py     # Measurement computation (BLT, void ratio, etc.)
 ├── report.py        # PDF report generation (requires Claude API)
 ├── utils.py         # Logging, file ops, NII→JPG conversion
-├── files.txt        # Input file list
+├── files.example.txt # Input file list template (copy to files.txt)
+├── .env.example     # Environment config template (copy to .env)
 ├── models/          # Detection and segmentation model weights
 └── pyproject.toml   # Dependencies
 ```
@@ -74,7 +75,13 @@ uv sync
 
 **Models**: Place `detection_model.pt` and `segmentation_model.ckpt` in `models/`.
 
-**Report generation**: Requires Claude API key. Set `CLAUDE_API_KEY` env var or pass `enable_ai_analysis=False` to `generate_pdf_report()` in `main.py` to disable LLM analysis.
+**Configuration**: Copy the example files before first run:
+```bash
+cp .env.example .env          # then fill in your CLAUDE_API_KEY
+cp files.example.txt files.txt # then add your input file paths
+```
+
+**Report generation**: AI analysis requires a Claude API key in `.env`. Pass `--ai-analysis` to enable it. Without the flag, reports are generated without the AI summary page.
 
 ## Pipeline Stages
 

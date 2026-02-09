@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 Automated PDF Report Generator
 
@@ -21,6 +23,9 @@ from datetime import datetime
 from pathlib import Path
 
 import anthropic
+from dotenv import load_dotenv
+
+load_dotenv()
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import nibabel as nib
