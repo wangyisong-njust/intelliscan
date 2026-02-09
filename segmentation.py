@@ -19,8 +19,6 @@ Workflow:
 3. Assemble all predictions into full volume
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
